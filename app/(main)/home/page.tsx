@@ -1,6 +1,6 @@
 "use client";
 
-import MasonryFeed from "../../../components/feed/MasonryFeed";
+import MasonryFeed from "@/components/feed/MasonryFeed";
 import { motion } from "framer-motion";
 
 export default function HomePage() {

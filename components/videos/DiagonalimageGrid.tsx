@@ -46,6 +46,7 @@ export default function DiagonalImageGrid() {
   const [brokenUrls, setBrokenUrls] = useState<Record<string, true>>({});
   const [blacklistedIds, setBlacklistedIds] = useState<Record<string, true>>({});
   const [blacklistedUrls, setBlacklistedUrls] = useState<Record<string, true>>({});
+  const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
   const { items, hasMore, isLoading, loadNext } = useInfiniteBtsFeed({ batchSize: 36 });
 
   const pool = useMemo(() => {
@@ -80,10 +81,13 @@ export default function DiagonalImageGrid() {
   }, []);
 
   useEffect(() => {
-    if (isLoading || !hasMore) return;
-    if (pool.length >= PER_ROW * 2) return;
+    if (isLoading || !hasMore || hasLoadedInitial) return;
+    if (pool.length >= PER_ROW * 4) {
+      setHasLoadedInitial(true);
+      return;
+    }
     void loadNext();
-  }, [hasMore, isLoading, loadNext, pool.length]);
+  }, [hasMore, isLoading, loadNext, pool.length, hasLoadedInitial]);
 
   // Sync with the app's data-theme attribute (same mechanism as ThreeBackground)
   useEffect(() => {
