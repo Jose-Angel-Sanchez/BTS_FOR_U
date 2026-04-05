@@ -227,12 +227,11 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
         }
       };
     }
-
-    const timer = window.setTimeout(() => {
+    const timer = globalThis.setTimeout(() => {
       void loadBurst(page, 1);
-    }, 600);
+    }, 1200);
 
-    return () => window.clearTimeout(timer);
+    return () => globalThis.clearTimeout(timer);
   }, [batchSize, hasMore, isLoading, items.length, loadBurst, page]);
 
   useEffect(() => {
