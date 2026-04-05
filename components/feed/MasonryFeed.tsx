@@ -251,8 +251,8 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
                   <img
                     src={item.url}
                     alt={item.title}
-                    width={item.width ?? 1200}
-                    height={item.height ?? 900}
+                    width={item.type === 'image' ? (item.width ?? 1200) : 1200}
+                    height={item.type === 'image' ? (item.height ?? 900) : (item.height ?? 900)}
                     loading="lazy"
                     className="h-auto w-full object-cover"
                     onError={() => {
