@@ -21,6 +21,62 @@ function hasMemberAlias(text: string, alias: string): boolean {
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);
 }
 
+function getBackendBaseUrl(): string | null {
+  const raw = (process.env.BACKEND_API_URL ?? '').trim();
+  if (!raw) return null;
+  return raw.replace(/\/$/, '');
+}
+
+async function fetchItemsFromBackendApi(page: number, size: number, member: string): Promise<Array<{
+  id: string;
+  title: string;
+  url: string;
+  member?: string | null;
+  source?: string;
+  tags?: string[];
+  width?: number;
+  height?: number;
+}> | null> {
+  const base = getBackendBaseUrl();
+  if (!base) return null;
+
+  const endpoint = new URL('/api/feed', `${base}/`);
+  endpoint.searchParams.set('page', String(page));
+  endpoint.searchParams.set('size', String(size));
+  if (member) endpoint.searchParams.set('member', member);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4500);
+
+  try {
+    const response = await fetch(endpoint.toString(), {
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+
+    const data = await response.json() as {
+      items?: Array<{
+        id: string;
+        title: string;
+        url: string;
+        member?: string | null;
+        source?: string;
+        tags?: string[];
+        width?: number;
+        height?: number;
+      }>;
+    };
+
+    if (!Array.isArray(data.items)) return null;
+    return data.items;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
@@ -41,16 +97,23 @@ export async function GET(request: Request) {
     height?: number;
   }> = [];
 
-  try {
-    const scraped = await fetchBtsImages(page, size * 3, normalizedMember || undefined);
-    const seen = new Set<string>();
-    items = scraped.filter((item) => {
-      if (seen.has(item.url)) return false;
-      seen.add(item.url);
-      return true;
-    }).slice(0, size);
-  } catch {
-    return NextResponse.json({ items: [], images: [], page, size, nextPage: page + 1 });
+  const fromBackendApi = await fetchItemsFromBackendApi(page, size, normalizedMember);
+  if (fromBackendApi && fromBackendApi.length > 0) {
+    items = fromBackendApi;
+  }
+
+  if (items.length === 0) {
+    try {
+      const scraped = await fetchBtsImages(page, size * 3, normalizedMember || undefined);
+      const seen = new Set<string>();
+      items = scraped.filter((item) => {
+        if (seen.has(item.url)) return false;
+        seen.add(item.url);
+        return true;
+      }).slice(0, size);
+    } catch {
+      return NextResponse.json({ items: [], images: [], page, size, nextPage: page + 1 });
+    }
   }
 
   // 🔥 FILTRO REAL POR INTEGRANTE
