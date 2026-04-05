@@ -1,3 +1,7 @@
+packages:
+  - .
+  - backend_api
+
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
