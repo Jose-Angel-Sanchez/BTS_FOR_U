@@ -213,7 +213,9 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
     const minBuffer = batchSize * PREFETCH_MIN_BUFFER_MULTIPLIER;
     if (items.length >= minBuffer) return;
 
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    if (typeof window === 'undefined') return;
+
+    if ('requestIdleCallback' in window) {
       const idleId = (window.requestIdleCallback as (callback: IdleRequestCallback, options?: IdleRequestOptions) => number)(
         () => {
           void loadBurst(page, 1);
