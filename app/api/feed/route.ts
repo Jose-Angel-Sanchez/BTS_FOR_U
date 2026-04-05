@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const normalizedMember = btsMemberProfiles.some((item) => item.id === member) ? member : '';
 
   try {
-    const scraped = await fetchBtsImages(pageNumber, sizeNumber * 4, normalizedMember || undefined);
+    const scraped = await fetchBtsImages(pageNumber, sizeNumber * 3, normalizedMember || undefined);
     const seen = new Set<string>();
     const items = scraped.filter((item) => {
       if (seen.has(item.url)) return false;

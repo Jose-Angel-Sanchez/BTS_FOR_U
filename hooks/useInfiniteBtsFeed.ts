@@ -4,14 +4,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedItem } from '@/types/feed';
 import { preferenceWeight } from '@/store/personalization';
 
+interface IdleRequestOptions {
+  timeout?: number;
+}
+
+interface IdleRequestCallback {
+  (deadline: { timeRemaining: () => number; didTimeout: boolean }): void;
+}
+
 interface UseFeedOptions {
   batchSize?: number;
   member?: string;
 }
 
 const FEED_CACHE_KEY = 'bts.feed.images.cache.v2';
-const PREFETCH_PARALLEL_PAGES = 1;
-const PREFETCH_MIN_BUFFER_MULTIPLIER = 1;
+const PREFETCH_PARALLEL_PAGES = 2;
+const PREFETCH_MIN_BUFFER_MULTIPLIER = 3;
 const CACHE_HYDRATE_LIMIT = 120;
 
 interface FeedCacheBucket {
@@ -94,7 +102,7 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
     setError(null);
   }, [member, batchSize]);
 
-  const loadNext = useCallback(async () => {
+  const loadBurst = useCallback(async (startPage: number, burstCount = 1) => {
     if (inflight.current || !hasMore) return;
     inflight.current = true;
 
@@ -102,46 +110,54 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
     setError(null);
 
     try {
-      const pagesToFetch = Array.from({ length: PREFETCH_PARALLEL_PAGES }, (_, index) => page + index);
+      const collectedResponses: Array<{ incoming: FeedItem[]; nextPage: number }> = [];
+      let cursor = startPage;
 
-      const responses = await Promise.all(
-        pagesToFetch.map(async (currentPage) => {
-          const params = new URLSearchParams({
-            page: String(currentPage),
-            size: String(batchSize),
-          });
+      for (let burstIndex = 0; burstIndex < burstCount; burstIndex += 1) {
+        const pagesToFetch = Array.from({ length: PREFETCH_PARALLEL_PAGES }, (_, index) => cursor + index);
 
-          if (member) params.set('member', member);
+        const responses = await Promise.all(
+          pagesToFetch.map(async (currentPage) => {
+            const params = new URLSearchParams({
+              page: String(currentPage),
+              size: String(batchSize),
+            });
 
-          const res = await fetch(`/api/bts-images?${params.toString()}`);
-          if (!res.ok) throw new Error('Unable to load feed');
+            if (member) params.set('member', member);
 
-          const data = (await res.json()) as {
-            items?: FeedItem[];
-            images?: Array<{ id?: string; title?: string; url: string }>;
-            nextPage?: number;
-          };
+            const res = await fetch(`/api/bts-images?${params.toString()}`);
+            if (!res.ok) throw new Error('Unable to load feed');
 
-          const incoming: FeedItem[] = Array.isArray(data.items)
-            ? data.items
-            : (data.images ?? []).map((image, index) => ({
-                id: image.id ?? `img-${currentPage}-${index}`,
-                type: 'image' as const,
-                title: image.title ?? 'BTS image',
-                url: image.url,
-                source: 'bts-images',
-                member: member ?? null,
-                tags: ['bts', member ?? 'all'],
-              }));
+            const data = (await res.json()) as {
+              items?: FeedItem[];
+              images?: Array<{ id?: string; title?: string; url: string }>;
+              nextPage?: number;
+            };
 
-          return {
-            incoming,
-            nextPage: data.nextPage ?? currentPage + 1,
-          };
-        }),
-      );
+            const incoming: FeedItem[] = Array.isArray(data.items)
+              ? data.items
+              : (data.images ?? []).map((image, index) => ({
+                  id: image.id ?? `img-${currentPage}-${index}`,
+                  type: 'image' as const,
+                  title: image.title ?? 'BTS image',
+                  url: image.url,
+                  source: 'bts-images',
+                  member: member ?? null,
+                  tags: ['bts', member ?? 'all'],
+                }));
 
-      const incoming = responses.flatMap((result) => result.incoming);
+            return {
+              incoming,
+              nextPage: data.nextPage ?? currentPage + 1,
+            };
+          }),
+        );
+
+        collectedResponses.push(...responses);
+        cursor = Math.max(cursor + PREFETCH_PARALLEL_PAGES, Math.max(...responses.map((result) => result.nextPage), cursor + 1));
+      }
+
+      const incoming = collectedResponses.flatMap((result) => result.incoming);
 
       const unique = incoming.reduce<FeedItem[]>((acc, item) => {
         const uniqueId = `${member || 'all'}-${item.id}`;
@@ -153,7 +169,7 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
       }, []);
 
       const ranked = [...unique].sort((a, b) => preferenceWeight(b.tags) - preferenceWeight(a.tags));
-      const nextPage = Math.max(...responses.map((result) => result.nextPage), page + PREFETCH_PARALLEL_PAGES);
+      const nextPage = Math.max(...collectedResponses.map((result) => result.nextPage), cursor);
       setItems((prev) => {
         const merged = [...prev, ...ranked];
         writeFeedCache(member, {
@@ -171,7 +187,7 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
         emptyPageStreak.current = 0;
       }
 
-      setHasMore(emptyPageStreak.current < 3);
+      setHasMore(emptyPageStreak.current < 10);
     } catch (unknownError) {
       const message = unknownError instanceof Error ? unknownError.message : 'Unknown feed error';
       setError(message);
@@ -180,6 +196,8 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
       setIsLoading(false);
     }
   }, [batchSize, hasMore, member, page]);
+
+  const loadNext = useCallback(async () => loadBurst(page, 1), [loadBurst, page]);
 
   useEffect(() => {
     if (didInitialLoad.current) return;
@@ -195,17 +213,30 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
     const minBuffer = batchSize * PREFETCH_MIN_BUFFER_MULTIPLIER;
     if (items.length >= minBuffer) return;
 
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const idleId = (window.requestIdleCallback as (callback: IdleRequestCallback, options?: IdleRequestOptions) => number)(
+        () => {
+          void loadBurst(page, 1);
+        },
+        { timeout: 600 },
+      );
+      return () => {
+        if (typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+          (window.cancelIdleCallback as (id: number) => void)(idleId);
+        }
+      };
+    }
+
     const timer = window.setTimeout(() => {
-      void loadNext();
-    }, 120);
+      void loadBurst(page, 1);
+    }, 600);
 
     return () => window.clearTimeout(timer);
-  }, [batchSize, hasMore, isLoading, items.length, loadNext]);
+  }, [batchSize, hasMore, isLoading, items.length, loadBurst, page]);
 
   useEffect(() => {
     const updateColumns = () => {
       if (window.innerWidth < 768) setColumnCount(2);
-      else if (window.innerWidth < 1280) setColumnCount(3);
       else setColumnCount(4);
     };
 

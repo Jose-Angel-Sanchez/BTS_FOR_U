@@ -756,7 +756,7 @@ export async function fetchBtsImages(page: number, size: number, member?: string
   }
 
   const searchTerms = chooseSearchTerms(page, member);
-  const probePages = [page, page + 1, page + 2];
+  const probePages = [page];
   const probeResults = await Promise.all(
     probePages.map(async (queryPage) => {
       const [requestedSources, webSocial, supplemental] = await Promise.all([

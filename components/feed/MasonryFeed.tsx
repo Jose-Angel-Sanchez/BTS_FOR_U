@@ -39,7 +39,6 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
   const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [activeActionsId, setActiveActionsId] = useState<string | null>(null);
-  const [isMobilePointer, setIsMobilePointer] = useState(false);
   const [brokenImageIds, setBrokenImageIds] = useState<Record<string, true>>({});
   const [blacklistedIds, setBlacklistedIds] = useState<Record<string, true>>({});
   const [blacklistedUrls, setBlacklistedUrls] = useState<Record<string, true>>({});
@@ -51,16 +50,6 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
     const blacklist = getBlacklist();
     setBlacklistedIds(Object.fromEntries(blacklist.ids.map((id) => [id, true])));
     setBlacklistedUrls(Object.fromEntries(blacklist.urls.map((url) => [url, true])));
-  }, []);
-
-  useEffect(() => {
-    const updatePointerMode = () => {
-      setIsMobilePointer(window.matchMedia('(hover: none), (pointer: coarse)').matches);
-    };
-
-    updatePointerMode();
-    window.addEventListener('resize', updatePointerMode);
-    return () => window.removeEventListener('resize', updatePointerMode);
   }, []);
 
   const filtered = useMemo(() => {
@@ -144,7 +133,7 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
           void loadNext();
         }
       },
-      { rootMargin: '1200px 0px 1400px 0px', threshold: 0 },
+      { rootMargin: '2400px 0px 2600px 0px', threshold: 0 },
     );
 
     if (sentinelRef.current) observer.observe(sentinelRef.current);
@@ -206,7 +195,7 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
   }, []);
 
   return (
-    <section className="relative mx-auto w-full max-w-375 px-3 py-8 sm:px-5">
+    <section className="page-shell relative w-full px-3 py-8 sm:px-5">
       <div className="soft-blur-mask soft-blur-mask-top" />
       <div className="soft-blur-mask soft-blur-mask-bottom" />
 
@@ -244,12 +233,7 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
                       return;
                     }
 
-                    if (isMobilePointer) {
-                      setActiveActionsId((current) => (current === item.id ? null : item.id));
-                      return;
-                    }
-
-                    openImageModal(item, 'view');
+                    setActiveActionsId((current) => (current === item.id ? null : item.id));
                   }}
                   className="w-full text-left"
                 >
@@ -273,16 +257,8 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
 
                 <div
                   className={`absolute left-2 right-2 top-2 z-20 flex flex-wrap justify-end gap-1 rounded-2xl bg-black/28 p-1.5 backdrop-blur-md transition-opacity ${
-                    activeActionsId === item.id
-                      ? 'pointer-events-auto opacity-100'
-                      : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
+                    activeActionsId === item.id ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
                   }`}
-                  onMouseEnter={() => {
-                    if (!isMobilePointer) setActiveActionsId(item.id);
-                  }}
-                  onMouseLeave={() => {
-                    if (!isMobilePointer) setActiveActionsId(null);
-                  }}
                 >
                   <button onClick={() => onExclude(item)} className="rounded-full bg-white/8 p-2 transition-colors hover:bg-red-500/80" title="Excluir este resultado"><Ban className="h-4 w-4" /></button>
                   <button onClick={() => void onCopy(item.url, item)} className="rounded-full bg-white/8 p-2 transition-colors hover:bg-bts-purple" title="Copiar enlace"><Copy className="h-4 w-4" /></button>

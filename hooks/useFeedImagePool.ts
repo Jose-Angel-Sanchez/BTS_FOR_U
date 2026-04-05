@@ -15,6 +15,7 @@ export function useFeedImagePool(size = 48) {
   const [hasMore, setHasMore] = useState(true);
   const [nextPage, setNextPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [emptyStreak, setEmptyStreak] = useState(0);
 
   const normalize = (items: Array<{ id: string; title: string; url: string }>) =>
     items
@@ -58,8 +59,13 @@ export function useFeedImagePool(size = 48) {
       const safe = normalize(raw);
 
       if (!safe.length) {
-        setHasMore(false);
+        setEmptyStreak((current) => {
+          const next = current + 1;
+          if (next >= 3) setHasMore(false);
+          return next;
+        });
       } else {
+        setEmptyStreak(0);
         setImages((current) => mergeUnique(current, safe));
         setNextPage((current) => current + 1);
       }
@@ -92,7 +98,8 @@ export function useFeedImagePool(size = 48) {
 
         if (mounted) {
           setImages(safe);
-          setHasMore(safe.length > 0);
+          setHasMore(true);
+          setEmptyStreak(safe.length ? 0 : 1);
           setNextPage(1);
         }
       } catch (unknownError) {
