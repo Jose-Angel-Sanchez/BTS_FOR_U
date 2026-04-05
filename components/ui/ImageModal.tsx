@@ -154,6 +154,8 @@ export default function ImageModal({ isOpen, imageUrl, title, initialTab = 'view
                     <img
                       src={imageUrl}
                       alt={title ?? 'Foto BTS'}
+                      width={1600}
+                      height={1200}
                       className="max-h-[56vh] w-full rounded-[1.4rem] object-contain shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
                     />
                    
@@ -194,7 +196,7 @@ export default function ImageModal({ isOpen, imageUrl, title, initialTab = 'view
                 <div className="flex min-h-75 flex-col items-center justify-center gap-6 p-10">
                   <p className="text-sm text-(--muted)">Escanea para abrir esta imagen en cualquier dispositivo</p>
                   <div className="rounded-2xl border border-(--accent)/40 bg-(--surface) p-3">
-                    <img src={qrApiUrl} alt="Codigo QR" className="h-48 w-48 rounded-xl" />
+                    <img src={qrApiUrl} alt="Codigo QR" width={192} height={192} className="h-48 w-48 rounded-xl" />
                   </div>
                   <p className="max-w-xs break-all text-center text-xs text-(--muted)">{imageUrl}</p>
                 </div>

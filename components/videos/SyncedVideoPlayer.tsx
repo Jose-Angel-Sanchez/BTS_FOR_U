@@ -86,8 +86,10 @@ export default function SyncedVideoPlayer({ src, title, eyebrow, posterSrc, clas
 
   // ── Mute this player when a sibling starts ───────────────────────────────
   useEffect(() => {
+    if (!active) return;
+
     return videoSyncBus.subscribe((activeId) => {
-      if (activeId !== playerId && active && iframeRef.current) {
+      if (activeId !== playerId && iframeRef.current) {
         sendYouTubeCommand(iframeRef.current, 'mute');
       }
     });
@@ -114,6 +116,8 @@ export default function SyncedVideoPlayer({ src, title, eyebrow, posterSrc, clas
                 <img
                   src={posterSrc}
                   alt={title}
+                  width={1280}
+                  height={720}
                   onError={() => setPosterError(true)}
                   className="absolute inset-0 h-full w-full object-cover"
                   loading="lazy"

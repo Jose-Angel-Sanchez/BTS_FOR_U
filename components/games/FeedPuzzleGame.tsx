@@ -663,6 +663,8 @@ export default function FeedPuzzleGame() {
                   <img
                     src={timedImage.url}
                     alt={timedImage.title}
+                    width={40}
+                    height={40}
                     className="h-10 w-10 rounded-lg border border-(--border) object-cover"
                   />
                 ) : (
@@ -717,7 +719,7 @@ export default function FeedPuzzleGame() {
                               ${timedImage?.id === image.id ? 'border-(--accent)' : 'border-(--border)'}`}
                             title={image.title}
                           >
-                            <img src={image.url} alt={image.title} className="h-full w-full object-cover" />
+                            <img src={image.url} alt={image.title} width={48} height={48} className="h-full w-full object-cover" />
                           </button>
                         ))}
                       </div>
@@ -763,7 +765,7 @@ export default function FeedPuzzleGame() {
                   className={`relative aspect-square overflow-hidden rounded-md border-2 transition-all
                     ${checked ? 'border-(--accent) ring-2 ring-(--accent)' : 'border-(--border) hover:border-(--accent)/50'}`}
                 >
-                  <img src={image.url} alt={image.title} className="h-full w-full object-cover" />
+                  <img src={image.url} alt={image.title} width={56} height={56} className="h-full w-full object-cover" />
                   {checked && (
                     <div className="absolute inset-0 grid place-items-center bg-black/35">
                       <span className="rounded-full bg-(--accent) px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">✓</span>
@@ -856,6 +858,8 @@ export default function FeedPuzzleGame() {
                     <img
                       src={referenceImage.url}
                       alt={referenceImage.title}
+                      width={1280}
+                      height={900}
                       className="h-auto w-full object-contain"
                     />
                   </div>
@@ -924,6 +928,8 @@ export default function FeedPuzzleGame() {
                   <img
                     src={referenceImage.url}
                     alt={referenceImage.title}
+                    width={1280}
+                    height={900}
                     className="h-auto w-full object-contain"
                   />
                 </div>

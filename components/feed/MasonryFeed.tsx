@@ -43,6 +43,7 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
   const [blacklistedIds, setBlacklistedIds] = useState<Record<string, true>>({});
   const [blacklistedUrls, setBlacklistedUrls] = useState<Record<string, true>>({});
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadLockRef = useRef(false);
 
@@ -50,6 +51,16 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
     const blacklist = getBlacklist();
     setBlacklistedIds(Object.fromEntries(blacklist.ids.map((id) => [id, true])));
     setBlacklistedUrls(Object.fromEntries(blacklist.urls.map((url) => [url, true])));
+  }, []);
+
+  useEffect(() => {
+    const updateMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    updateMobile();
+    window.addEventListener('resize', updateMobile);
+    return () => window.removeEventListener('resize', updateMobile);
   }, []);
 
   const filtered = useMemo(() => {
@@ -202,9 +213,9 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
       <AnimatePresence>
         {toast && (
           <motion.p
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+            initial={isMobile ? false : { opacity: 0, y: -20 }}
+            animate={isMobile ? undefined : { opacity: 1, y: 0 }}
+            exit={isMobile ? undefined : { opacity: 0, y: -10 }}
             className="fixed left-1/2 top-20 z-120 -translate-x-1/2 rounded-2xl bg-bts-purple px-4 py-2 text-sm text-white"
           >
             {toast}
@@ -212,18 +223,18 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
         )}
       </AnimatePresence>
 
-      <div className="feed-3d-stage flex w-full items-start gap-3 sm:gap-4">
+      <div className={`${isMobile ? '' : 'feed-3d-stage '}flex w-full items-start gap-3 sm:gap-4`}>
         {visibleByColumn.map((column, colIndex) => (
           <div key={colIndex} className="flex min-w-0 flex-1 flex-col gap-3 sm:gap-4">
             {column.map((item, index) => (
               <motion.article
                 key={`${item.id}-${index}`}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                whileHover={{ y: -8, scale: 1.015, rotateY: colIndex % 2 === 0 ? -2 : 2, rotateX: 1 }}
-                transition={{ type: 'spring', stiffness: 220, damping: 22 }}
-                className="feed-3d-card group relative overflow-hidden rounded-3xl bg-transparent shadow-[0_22px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl"
-                style={{ transformStyle: 'preserve-3d' }}
+                initial={isMobile ? false : { opacity: 0, y: 12 }}
+                animate={isMobile ? undefined : { opacity: 1, y: 0 }}
+                whileHover={isMobile ? undefined : { y: -8, scale: 1.015, rotateY: colIndex % 2 === 0 ? -2 : 2, rotateX: 1 }}
+                transition={isMobile ? undefined : { type: 'spring', stiffness: 220, damping: 22 }}
+                className={`${isMobile ? '' : 'feed-3d-card '}group relative overflow-hidden rounded-3xl bg-transparent shadow-[0_22px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl`}
+                style={isMobile ? undefined : { transformStyle: 'preserve-3d' }}
               >
                 <button
                   onClick={() => {
@@ -240,6 +251,8 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
                   <img
                     src={item.url}
                     alt={item.title}
+                    width={item.width ?? 1200}
+                    height={item.height ?? 900}
                     loading="lazy"
                     className="h-auto w-full object-cover"
                     onError={() => {
@@ -288,9 +301,9 @@ export default function MasonryFeed({ filterType, member }: MasonryFeedProps) {
       <AnimatePresence>
         {showScrollTop && (
           <motion.button
-            initial={{ opacity: 0, y: 22, scale: 0.92 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 18, scale: 0.92 }}
+            initial={isMobile ? false : { opacity: 0, y: 22, scale: 0.92 }}
+            animate={isMobile ? undefined : { opacity: 1, y: 0, scale: 1 }}
+            exit={isMobile ? undefined : { opacity: 0, y: 18, scale: 0.92 }}
             onClick={backToTop}
             className="fixed right-5 bottom-6 z-120 rounded-full bg-(--accent)/88 p-3 text-white shadow-[0_18px_45px_rgba(0,0,0,0.35)] backdrop-blur-lg transition-transform hover:-translate-y-1"
             title="Volver al inicio"

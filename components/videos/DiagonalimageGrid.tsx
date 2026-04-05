@@ -9,12 +9,15 @@ import type { FeedImage } from '@/types/feed';
 type GridImage = Pick<FeedImage, 'id' | 'url' | 'title'>;
 
 // ── Row configuration ─────────────────────────────────────────────────────────
-const TILE_W = 210;  // px
-const TILE_H = 132;  // px
-const GAP = 10;      // px between tiles
-const PER_ROW = 12;  // tiles per copy (doubled for seamless loop)
+const DESKTOP_TILE_W = 210;  // px
+const DESKTOP_TILE_H = 132;  // px
+const DESKTOP_GAP = 10;      // px between tiles
+const DESKTOP_PER_ROW = 12;  // tiles per copy (doubled for seamless loop)
 
-const STRIP_W = (TILE_W + GAP) * PER_ROW; // width of one copy
+const MOBILE_TILE_W = 146;
+const MOBILE_TILE_H = 92;
+const MOBILE_GAP = 8;
+const MOBILE_PER_ROW = 8;
 
 // Each row: which image subset, direction, and speed (seconds for one full loop)
 const ROW_CONFIGS = [
@@ -31,7 +34,16 @@ const ROW_CONFIGS = [
 function buildRow(images: GridImage[], startAt: number): GridImage[] {
   const row: GridImage[] = [];
   if (images.length === 0) return row;
-  for (let i = 0; i < PER_ROW; i++) {
+  for (let i = 0; i < images.length; i++) {
+    row.push(images[(startAt + i) % images.length]);
+  }
+  return row;
+}
+
+function buildStrip(images: GridImage[], startAt: number, perRow: number): GridImage[] {
+  const row: GridImage[] = [];
+  if (images.length === 0) return row;
+  for (let i = 0; i < perRow; i++) {
     row.push(images[(startAt + i) % images.length]);
   }
   return row;
@@ -42,12 +54,20 @@ const DARK_OVERLAY = 'rgba(6, 3, 18, 0.72)';
 const LIGHT_OVERLAY = 'rgba(245, 240, 255, 0.76)';
 
 export default function DiagonalImageGrid() {
+  const [isMobile, setIsMobile] = useState(false);
   const [overlayColor, setOverlayColor] = useState(DARK_OVERLAY);
   const [brokenUrls, setBrokenUrls] = useState<Record<string, true>>({});
   const [blacklistedIds, setBlacklistedIds] = useState<Record<string, true>>({});
   const [blacklistedUrls, setBlacklistedUrls] = useState<Record<string, true>>({});
-  const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
   const { items, hasMore, isLoading, loadNext } = useInfiniteBtsFeed({ batchSize: 36 });
+
+  const tileW = isMobile ? MOBILE_TILE_W : DESKTOP_TILE_W;
+  const tileH = isMobile ? MOBILE_TILE_H : DESKTOP_TILE_H;
+  const gap = isMobile ? MOBILE_GAP : DESKTOP_GAP;
+  const perRow = isMobile ? MOBILE_PER_ROW : DESKTOP_PER_ROW;
+  const stripW = (tileW + gap) * perRow;
+
+  const visibleRows = useMemo(() => (isMobile ? ROW_CONFIGS.slice(0, 4) : ROW_CONFIGS), [isMobile]);
 
   const pool = useMemo(() => {
     const images = items.filter((item): item is FeedImage => item.type === 'image');
@@ -65,6 +85,12 @@ export default function DiagonalImageGrid() {
   }, [blacklistedIds, blacklistedUrls, brokenUrls, items]);
 
   useEffect(() => {
+    const updateMobile = () => {
+      setIsMobile(window.matchMedia('(hover: none), (pointer: coarse)').matches || window.innerWidth < 768);
+    };
+
+    updateMobile();
+
     const blacklist = getBlacklist();
     setBlacklistedIds(Object.fromEntries(blacklist.ids.map((id) => [id, true])));
     setBlacklistedUrls(Object.fromEntries(blacklist.urls.map((url) => [url, true])));
@@ -77,17 +103,18 @@ export default function DiagonalImageGrid() {
     };
 
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener('resize', updateMobile);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('resize', updateMobile);
+    };
   }, []);
 
   useEffect(() => {
-    if (isLoading || !hasMore || hasLoadedInitial) return;
-    if (pool.length >= PER_ROW * 4) {
-      setHasLoadedInitial(true);
-      return;
-    }
+    if (isLoading || !hasMore) return;
+    if (pool.length >= perRow * 3) return;
     void loadNext();
-  }, [hasMore, isLoading, loadNext, pool.length, hasLoadedInitial]);
+  }, [hasMore, isLoading, loadNext, perRow, pool.length]);
 
   // Sync with the app's data-theme attribute (same mechanism as ThreeBackground)
   useEffect(() => {
@@ -116,35 +143,35 @@ export default function DiagonalImageGrid() {
       <div
         className="absolute"
         style={{
-          inset: '-10%',
-          transform: 'rotate(-12deg)',
+          inset: isMobile ? '-2% -10% -4% -2%' : '-10%',
+          transform: isMobile ? 'translateX(8vw) rotate(-8deg)' : 'rotate(-12deg)',
           display: 'flex',
           flexDirection: 'column',
-          gap: GAP,
+          gap,
           margin: '0 auto',
-          width: '120vw',
-          height: '120vh',
+          width: isMobile ? '150vw' : '120vw',
+          height: isMobile ? '112vh' : '120vh',
         }}
       >
-        {ROW_CONFIGS.map((cfg, rowIdx) => {
-          const images = buildRow(pool, cfg.startAt);
+        {visibleRows.map((cfg, rowIdx) => {
+          const images = buildStrip(pool, cfg.startAt, perRow);
           // Double images for seamless loop
           const doubled = [...images, ...images];
 
           // Reverse direction: start at -STRIP_W, animate to 0
           // Forward direction: start at 0, animate to -STRIP_W
-          const fromX = cfg.reverse ? -STRIP_W : 0;
-          const toX   = cfg.reverse ? 0 : -STRIP_W;
+          const fromX = cfg.reverse ? -stripW : 0;
+          const toX   = cfg.reverse ? 0 : -stripW;
 
           return (
             <div
               key={rowIdx}
               className="relative shrink-0 overflow-hidden"
-              style={{ height: TILE_H }}
+              style={{ height: tileH }}
             >
               <motion.div
                 className="absolute flex"
-                style={{ gap: GAP, width: STRIP_W * 2, x: fromX }}
+                style={{ gap, width: stripW * 2, x: fromX }}
                 animate={{ x: toX }}
                 transition={{
                   duration: cfg.duration,
@@ -157,12 +184,14 @@ export default function DiagonalImageGrid() {
                   <div
                     key={`${rowIdx}-${tileIdx}`}
                     className="relative shrink-0 overflow-hidden rounded-lg"
-                    style={{ width: TILE_W, height: TILE_H }}
+                    style={{ width: tileW, height: tileH }}
                   >
                     {thumb ? (
                       <img
                         src={thumb.url}
                         alt=""
+                        width={tileW}
+                        height={tileH}
                         loading="lazy"
                         decoding="async"
                         onError={() => {

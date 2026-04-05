@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeedItem } from '@/types/feed';
-import { preferenceWeight } from '@/store/personalization';
+import { getInteractions } from '@/store/personalization';
 
 interface IdleRequestOptions {
   timeout?: number;
@@ -67,6 +67,18 @@ function writeFeedCache(member: string | undefined, next: FeedCacheBucket) {
   }
 }
 
+function preferenceWeightFromEvents(tags: string[], events: ReturnType<typeof getInteractions>) {
+  if (events.length === 0) return 0;
+
+  const score = events.reduce((acc, event) => {
+    const overlap = event.tags.filter((tag) => tags.includes(tag)).length;
+    const eventBoost = event.type === 'download' ? 4 : event.type === 'share' ? 3 : event.type === 'copy' ? 2 : 1;
+    return acc + overlap * eventBoost;
+  }, 0);
+
+  return score / Math.max(events.length, 1);
+}
+
 export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
   const { batchSize = 24, member } = options;
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -105,6 +117,7 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
   const loadBurst = useCallback(async (startPage: number, burstCount = 1) => {
     if (inflight.current || !hasMore) return;
     inflight.current = true;
+    const interactions = getInteractions();
 
     setIsLoading(true);
     setError(null);
@@ -168,7 +181,9 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
         return acc;
       }, []);
 
-      const ranked = [...unique].sort((a, b) => preferenceWeight(b.tags) - preferenceWeight(a.tags));
+      const ranked = [...unique].sort(
+        (a, b) => preferenceWeightFromEvents(b.tags, interactions) - preferenceWeightFromEvents(a.tags, interactions),
+      );
       const nextPage = Math.max(...collectedResponses.map((result) => result.nextPage), cursor);
       setItems((prev) => {
         const merged = [...prev, ...ranked];

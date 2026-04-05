@@ -1,10 +1,15 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { motion, useScroll, useTransform, AnimatePresence, type Variants } from 'framer-motion';
-import { useRef, useState } from 'react';
-import DiagonalImageGrid from '@/components/videos/DiagonalimageGrid';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import SyncedVideoPlayer from '@/components/videos/SyncedVideoPlayer';
 import { mockFeedData } from '@/lib/mockData';
+
+const DiagonalImageGrid = dynamic(() => import('@/components/videos/DiagonalimageGrid'), {
+  ssr: false,
+  loading: () => null,
+});
 
 // ── Featured videos (always shown prominently) ───────────────────────────────
 const FEATURED = [
@@ -81,6 +86,25 @@ export default function VideosPage() {
   const heroOpacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
 
   const [activeFilter, setActiveFilter] = useState<Filter>('Todos');
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileCatalogVisible, setMobileCatalogVisible] = useState(false);
+  const [mobileCatalogCount, setMobileCatalogCount] = useState(4);
+
+  useEffect(() => {
+    const updateMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    updateMobile();
+    window.addEventListener('resize', updateMobile);
+    return () => window.removeEventListener('resize', updateMobile);
+  }, []);
+
+  const visibleCatalogVideos = useMemo(() => {
+    if (!isMobile) return catalogVideos;
+    if (!mobileCatalogVisible) return [];
+    return catalogVideos.slice(0, mobileCatalogCount);
+  }, [isMobile, mobileCatalogCount, mobileCatalogVisible]);
 
   return (
     <div className="relative min-h-screen mt-10">
@@ -88,13 +112,30 @@ export default function VideosPage() {
       {/* ── Sticky background layer ───────────────────────────────────────── */}
       <section
         className="sticky top-0 h-0 w-full overflow-visible"
+        style={isMobile ? { contentVisibility: 'auto', containIntrinsicSize: '100vh' } : undefined}
       >
-        <DiagonalImageGrid />
+        {isMobile ? (
+          <div
+            className="mobile-particle-backdrop pointer-events-none absolute inset-x-0 top-0 h-screen overflow-hidden"
+            aria-hidden="true"
+          >
+            <div className="mobile-particle-layer mobile-particle-layer-1" />
+            <div className="mobile-particle-layer mobile-particle-layer-2" />
+            <div className="mobile-particle-layer mobile-particle-layer-3" />
+            <div className="mobile-particle-glow" />
+          </div>
+        ) : (
+          <DiagonalImageGrid />
+        )}
       </section>
 
       {/* ── HERO title content (no full-screen spacer) ───────────────────── */}
-      <section ref={heroRef} className="relative z-10 w-full px-6 pb-6 pt-4">
-        <motion.div style={{ y: heroY, opacity: heroOpacity }} className="page-shell">
+      <section
+        ref={heroRef}
+        className="relative z-10 w-full px-6 pb-6 pt-4"
+        style={isMobile ? { contentVisibility: 'auto', containIntrinsicSize: '12rem' } : undefined}
+      >
+        <motion.div style={isMobile ? { opacity: heroOpacity } : { y: heroY, opacity: heroOpacity }} className="page-shell">
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -123,7 +164,10 @@ export default function VideosPage() {
       </section>
 
       {/* ── FEATURED — two large embeds ──────────────────────────────────── */}
-      <section className="page-shell relative z-10 px-4 py-10 sm:px-6">
+      <section
+        className="page-shell relative z-10 px-4 py-10 sm:px-6"
+        style={isMobile ? { contentVisibility: 'auto', containIntrinsicSize: '60rem' } : undefined}
+      >
         <motion.p
           initial={{ opacity: 0, x: -12 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -151,7 +195,7 @@ export default function VideosPage() {
                 whileInView="show"
                 viewport={{ once: true, margin: '-60px' }}
                 variants={fadeUp}
-                whileHover="hover"
+                whileHover={isMobile ? undefined : 'hover'}
                 animate="rest"
               >
                 <motion.div variants={cardHover}>
@@ -170,7 +214,26 @@ export default function VideosPage() {
       </section>
 
       {/* ── CATALOG — extended grid with filter tabs ─────────────────────── */}
-      <section className="page-shell relative z-10 px-4 pb-20 sm:px-6">
+      <section
+        className="page-shell relative z-10 px-4 pb-20 sm:px-6"
+        style={isMobile ? { contentVisibility: 'auto', containIntrinsicSize: '80rem' } : undefined}
+      >
+        {isMobile && !mobileCatalogVisible ? (
+          <div className="mb-6 rounded-3xl border border-(--border) bg-(--surface-soft) p-5 text-center shadow-(--shadow-soft)">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-(--muted)">Catálogo</p>
+            <h2 className="mt-2 text-xl font-black">Carga ligera en móvil</h2>
+            <p className="mt-2 text-sm text-(--muted)">Mostramos la lista cuando la solicites para que la vista vaya más fluida.</p>
+            <button
+              onClick={() => setMobileCatalogVisible(true)}
+              className="mt-4 rounded-full bg-(--accent) px-5 py-2 text-sm font-semibold text-white"
+            >
+              Mostrar catálogo
+            </button>
+          </div>
+        ) : null}
+
+        {(!isMobile || mobileCatalogVisible) ? (
+          <>
         {/* Section header + filter tabs */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <motion.div
@@ -222,7 +285,7 @@ export default function VideosPage() {
             transition={{ duration: 0.3 }}
             className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
           >
-            {catalogVideos.map((video, i) => {
+            {visibleCatalogVideos.map((video, i) => {
               if (!video.videoId) return null;
 
               const src = `https://www.youtube-nocookie.com/embed/${video.videoId}?autoplay=0&modestbranding=1&rel=0`;
@@ -237,7 +300,7 @@ export default function VideosPage() {
                   whileInView="show"
                   viewport={{ once: true, margin: '-40px' }}
                   variants={fadeUp}
-                  whileHover="hover"
+                  whileHover={isMobile ? undefined : 'hover'}
                   animate="rest"
                 >
                   <motion.div variants={cardHover} className="h-full">
@@ -254,6 +317,19 @@ export default function VideosPage() {
             })}
           </motion.div>
         </AnimatePresence>
+
+        {isMobile && mobileCatalogVisible && mobileCatalogCount < catalogVideos.length ? (
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => setMobileCatalogCount((current) => Math.min(current + 4, catalogVideos.length))}
+              className="rounded-full border border-(--border) bg-(--surface-soft) px-5 py-2 text-sm font-semibold text-foreground"
+            >
+              Cargar más videos
+            </button>
+          </div>
+        ) : null}
+          </>
+        ) : null}
       </section>
     </div>
   );
