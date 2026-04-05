@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { btsMemberProfiles } from '@/lib/btsMembers';
+import { fetchBtsImages } from '@/lib/btsScraper';
 
 const NOISE_PATTERN = /bangkok|skytrain|rail|metro|station|transit|bus rapid|\bn\d{1,3}\b|opaque|feather|logo|icon|symbol/i;
 const BTS_PERSON_PATTERN = /\bbts\b|bangtan|방탄소년단|kpop|idol|hybe|bighit|music awards?|concert|performance|press conference|namjoon|seokjin|yoongi|hoseok|jimin|taehyung|jungkook|\brm\b|\bjin\b|\bsuga\b|j-hope|jhope/i;
@@ -26,27 +28,30 @@ export async function GET(request: Request) {
   const size = Math.max(24, Math.min(72, Number.parseInt(searchParams.get('size') ?? '48', 10) || 48));
   const member = (searchParams.get('member') ?? '').toLowerCase();
 
-  const feedUrl = new URL('/api/feed', request.url);
-  feedUrl.searchParams.set('page', String(page));
-  feedUrl.searchParams.set('size', String(size));
-  if (member) {
-    feedUrl.searchParams.set('member', member);
+  const normalizedMember = btsMemberProfiles.some((item) => item.id === member) ? member : '';
+
+  let items: Array<{
+    id: string;
+    title: string;
+    url: string;
+    member?: string | null;
+    source?: string;
+    tags?: string[];
+    width?: number;
+    height?: number;
+  }> = [];
+
+  try {
+    const scraped = await fetchBtsImages(page, size * 3, normalizedMember || undefined);
+    const seen = new Set<string>();
+    items = scraped.filter((item) => {
+      if (seen.has(item.url)) return false;
+      seen.add(item.url);
+      return true;
+    }).slice(0, size);
+  } catch {
+    return NextResponse.json({ items: [], images: [], page, size, nextPage: page + 1 });
   }
-
-  const response = await fetch(feedUrl.toString(), {
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    return NextResponse.json({ items: [], images: [], page, size, nextPage: page + 1 }, { status: response.status });
-  }
-
-  const data = await response.json() as {
-    items: Array<{ id: string; title: string; url: string; member?: string | null; source?: string; tags?: string[] }>;
-    nextPage?: number;
-  };
-
-  let items = data.items ?? [];
 
   // 🔥 FILTRO REAL POR INTEGRANTE
   if (member && MEMBER_MAP[member]) {
@@ -72,6 +77,8 @@ export async function GET(request: Request) {
       url: item.url.replace(/^http:\/\//i, 'https://'),
       source: item.source ?? 'bts-images',
       member: item.member ?? null,
+      width: item.width,
+      height: item.height,
       tags: item.tags ?? ['bts'],
     }))
     .filter((item) => item.url.startsWith('https://'));
@@ -81,6 +88,6 @@ export async function GET(request: Request) {
     images: normalizedItems.map((item) => ({ id: item.id, title: item.title, url: item.url })),
     page,
     size,
-    nextPage: data.nextPage ?? page + 1,
+    nextPage: page + 1,
   });
 }
