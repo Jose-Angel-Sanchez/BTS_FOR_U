@@ -209,11 +209,10 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
   }, [loadNext]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     if (isLoading || !hasMore) return;
     const minBuffer = batchSize * PREFETCH_MIN_BUFFER_MULTIPLIER;
     if (items.length >= minBuffer) return;
-
-    if (typeof window === 'undefined') return;
 
     if ('requestIdleCallback' in window) {
       const idleId = (window.requestIdleCallback as (callback: IdleRequestCallback, options?: IdleRequestOptions) => number)(
@@ -223,7 +222,7 @@ export function useInfiniteBtsFeed(options: UseFeedOptions = {}) {
         { timeout: 600 },
       );
       return () => {
-        if (typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        if ('cancelIdleCallback' in window) {
           (window.cancelIdleCallback as (id: number) => void)(idleId);
         }
       };
